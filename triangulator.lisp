@@ -80,11 +80,13 @@ Modifiers is a possibly empty list of keywords that look like :lshift
     ((list :scancode-n) (cycle-models))
     ((list :scancode-n :rshift) (cycle-models t))
     ((list :scancode-n :lshift) (cycle-models t))
+    ((list :scancode-z) (cancel))
     ((list :scancode-up) (move-selected 0 -5))
     ((list :scancode-down) (move-selected 0 5))
     ((list :scancode-left) (move-selected -5 0))
     ((list :scancode-right) (move-selected 5 0))
-
+    ((list :scancode-tab) (next-selected-point))
+    (_ (print key) (force-output))
     ))
 
 (defvar *selected-pt* nil)
@@ -97,6 +99,24 @@ Modifiers is a possibly empty list of keywords that look like :lshift
   (when *selected-pt*
     (incf (sdl2:point-x *selected-pt*) dx)
     (incf (sdl2:point-y *selected-pt*) dy)))
+
+(defun next-selected-point ()
+  (when *current-model* 
+    (cond 
+      ((member *selected-pt* (model-path *current-model*))
+       (setf *selected-pt*
+             (or (second (member *selected-pt* (model-path *current-model*)))
+                 (first (tracking-points *current-model*))
+                 (first (model-path *current-model*)))))
+
+      ((member *selected-pt* (tracking-points *current-model*))
+       (setf *selected-pt*
+             (or (second (member *selected-pt* (tracking-points *current-model*)))
+                 (first (model-path *current-model*))
+                 (first (tracking-points *current-model*)))))
+
+      (t
+       (setf *selected-pt* (first (model-path *current-model*)))))))
 
 (defun add-path-point (x y)
   (push (sdl2:make-point x y)
@@ -144,14 +164,14 @@ Modifiers is a possibly empty list of keywords that look like :lshift
     (:select (select-point-at x y))))
 
 
-(let ((point-rect (sdl2:make-rect 0 0 10 10)))
+(let ((point-rect (sdl2:make-rect 0 0 20 20)))
   (defun draw-point (renderer point)
-    (setf (sdl2:rect-x point-rect) (- (sdl2:point-x point) 5)
-          (sdl2:rect-y point-rect) (- (sdl2:point-y point) 5))
+    (setf (sdl2:rect-x point-rect) (- (sdl2:point-x point) 10)
+          (sdl2:rect-y point-rect) (- (sdl2:point-y point) 10))
     (sdl2:render-fill-rect renderer point-rect)))
 
 (defun render (renderer)
-  (sdl2:set-render-draw-color renderer 255 255 255 255)
+  (sdl2:set-render-draw-color renderer 110 110 110 255)
   (sdl2:render-clear renderer)
 
   (when *current-model*
@@ -169,6 +189,10 @@ Modifiers is a possibly empty list of keywords that look like :lshift
           (multiple-value-bind (points num) (apply #'sdl2:points* tri)
             (sdl2:render-draw-lines renderer points num))))))
 
+  (when *selected-pt*
+    (sdl2:set-render-draw-color renderer 255 0 255 255)
+    (draw-point renderer *selected-pt*))
+  
   (sdl2:render-present renderer)
   (sdl2:delay (round (/ 1000 60))))
 

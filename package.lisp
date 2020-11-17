@@ -2,4 +2,4 @@
 
 (defpackage #:triangulator
   (:use #:cl)
-  (:import-from #:alexandria #:when-let))
+  (:import-from #:alexandria #:when-let #:if-let))
