@@ -33,8 +33,34 @@ Modifiers is a possibly empty list of keywords that look like :lshift
 :triangle  - for adding triangles to the model
 :select    - for selecting points for manipulation")
 
-(defvar *all-models* nil)
+(defun make-queue ()
+  (cons nil nil))
+
+(defun enqueue (x q) 
+  (push x (car q)))
+
+(defun dequeue (q)
+  (when (and (car q) (null (cdr q)))
+    (setf (cdr q) (reverse (car q))
+          (car q) nil))
+  (when (cdr q) (pop (cdr q))))
+             
+(defun queue-empty-p (q)
+  (and (null (car q))
+       (null (cdr q))))
+
+
+(defvar *all-models* (make-queue))
 (defvar *current-model* nil)
+
+(defun cycle-models (&optional new-p)
+  (let ((new-model (if new-p (make-instance 'model)
+                       (dequeue *all-models*))))
+    (when *current-model*
+      (enqueue *current-model* *all-models*))
+    (setf *current-model* new-model)
+    (setf *selected-pt* nil)
+    (switch-mode :path)))
 
 (defun switch-mode (m)
   (setf *mode* m)
@@ -48,14 +74,17 @@ Modifiers is a possibly empty list of keywords that look like :lshift
   (trivia:match key
     ((list :scancode-p) (switch-mode :path))
     ((list :scancode-t :rshift) (switch-mode :triangle))
+    ((list :scancode-t :lshift) (switch-mode :triangle))
     ((list :scancode-t) (switch-mode :tracking))
     ((list :scancode-s) (switch-mode :select))
-                                        ;    ((list :scancode-z) (cancel))
+    ((list :scancode-n) (cycle-models))
+    ((list :scancode-n :rshift) (cycle-models t))
+    ((list :scancode-n :lshift) (cycle-models t))
     ((list :scancode-up) (move-selected 0 -5))
     ((list :scancode-down) (move-selected 0 5))
     ((list :scancode-left) (move-selected -5 0))
     ((list :scancode-right) (move-selected 5 0))
-    (_ (print key) (force-output)) 
+
     ))
 
 (defvar *selected-pt* nil)
@@ -95,9 +124,13 @@ Modifiers is a possibly empty list of keywords that look like :lshift
 
 (let ((building-triangle nil))
   (defun add-point-to-triangle (x y)
-    (cond
-      ((find)))
-    ))
+    (multiple-value-bind (pt kind) (point-at x y)
+      (declare (ignorable kind))
+      (when pt
+        (push pt building-triangle))
+      (when (= 3 (length building-triangle))
+        (push building-triangle (triangles *current-model*))
+        (setf building-triangle nil)))))
 
 (defun handle-mousedown (&key x y clicks button)
   (declare (ignorable x y clicks button))
@@ -124,13 +157,17 @@ Modifiers is a possibly empty list of keywords that look like :lshift
   (when *current-model*
     (with-slots (path tracking-points triangles) *current-model* 
       (sdl2:set-render-draw-color renderer 0 0 255 255)
-      (multiple-value-bind (points num) (apply #'sdl2:points* (reverse path))
-        (sdl2:render-draw-lines renderer points num))
+      (let ((path (when (car path) (cons (car (last path)) path))))
+        (multiple-value-bind (points num) (apply #'sdl2:points* (reverse path))
+          (sdl2:render-draw-lines renderer points num)))
       (dolist (pt path) (draw-point renderer pt))
       (sdl2:set-render-draw-color renderer 255 0 0 255)
       (dolist (pt tracking-points) (draw-point renderer pt))
-
-      ))
+      (sdl2:set-render-draw-color renderer 0 255 0 255)
+      (dolist (tri triangles)
+        (let ((tri (cons (car (last tri)) tri)))
+          (multiple-value-bind (points num) (apply #'sdl2:points* tri)
+            (sdl2:render-draw-lines renderer points num))))))
 
   (sdl2:render-present renderer)
   (sdl2:delay (round (/ 1000 60))))
