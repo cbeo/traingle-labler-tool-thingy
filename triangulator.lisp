@@ -2,7 +2,66 @@
 
 (in-package #:triangulator)
 
-(defvar *some-rect* (sdl2:make-rect 0 0 100 100))
+(defclass point ()
+  ((raw :initarg :raw :reader raw-point)))
+
+(defclass tracking-point (point)
+  ((label :accessor label :initform "")
+   (behavior :accessor behavior :initform "")))
+
+(defun make-tracking-point (x y)
+  (make-instance 'tracking-point :raw (sdl2:make-point x y)))
+
+(defclass vertex (point)
+  ((tracking :accessor tracking-point :initform "")))
+
+(defun make-vertex (x y)
+  (make-instance 'vertex :raw (sdl2:make-point x y)))
+
+(defgeneric edit-point (point)
+  (:documentation "interactive edit string features of this point"))
+
+(defmethod edit-point ((pt vertex))
+  (with-slots (tracking) pt
+    (when (y-or-n-p "Set the tracking label?")
+      (princ "new tracking> ") (force-output)
+      (setf tracking (read-line)))))
+
+(defmethod edit-point ((pt tracking-point))
+  (with-slots (label behavior) pt
+    (when (y-or-n-p "Change the label?")
+      (princ "new label> ") (force-output)
+      (setf label (read-line)))
+    (when (y-or-n-p "Change the behavior?")
+      (princ "new behavior> ") (force-output)
+      (setf behavior (read-line)))))
+
+(defmethod print-object ((vertex vertex) stream)
+  (with-slots (tracking) vertex
+    (format stream "vertex~%x = ~a~%y = ~a~%tracking = ~a~%"
+            (point-x vertex) (point-y vertex) tracking)))
+
+(defmethod print-object ((pt tracking-point) stream)
+  (with-slots (label behavior) pt
+    (format stream "tracking point~%x = ~a~%y = ~a~%label = ~a~%behavior = ~a~%"
+            (point-x pt) (point-y pt) label behavior)    ))
+
+(defun point-x (point)
+  (with-slots (raw) point
+    (sdl2:point-x raw)))
+
+(defun (setf point-x) (val point)
+  (with-slots (raw) point
+    (setf (sdl2:point-x raw) val))) 
+
+(defun point-y (point)
+  (with-slots (raw) point
+    (sdl2:point-y raw)))
+
+(defun (setf point-y) (val point)
+  (with-slots (raw) point
+    (setf (sdl2:point-y raw) val))) 
+
 
 (defclass model ()
   ((path
@@ -53,6 +112,10 @@ Modifiers is a possibly empty list of keywords that look like :lshift
 (defvar *all-models* (make-queue))
 (defvar *current-model* nil)
 
+(defun clear-models ()
+  (setf *all-models* (make-queue)
+        *current-model* nil))
+
 (defun cycle-models (&optional new-p)
   (let ((new-model (if new-p (make-instance 'model)
                        (dequeue *all-models*))))
@@ -86,7 +149,8 @@ Modifiers is a possibly empty list of keywords that look like :lshift
     ((list :scancode-left) (move-selected -5 0))
     ((list :scancode-right) (move-selected 5 0))
     ((list :scancode-tab) (next-selected-point))
-    (_ (print key) (force-output))
+    ((list :scancode-e) (edit-selected))
+    ;;(_ (print key) (force-output))
     ))
 
 (defvar *selected-pt* nil)
@@ -97,8 +161,17 @@ Modifiers is a possibly empty list of keywords that look like :lshift
 
 (defun move-selected (dx dy)
   (when *selected-pt*
-    (incf (sdl2:point-x *selected-pt*) dx)
-    (incf (sdl2:point-y *selected-pt*) dy)))
+    (incf (point-x *selected-pt*) dx)
+    (incf (point-y *selected-pt*) dy)))
+
+(defun edit-selected ()
+  (when *selected-pt*
+    (terpri)
+    (edit-point *selected-pt*)
+    (princ "updated to:")
+    (terpri)
+    (princ *selected-pt*)
+    (terpri)))
 
 (defun next-selected-point ()
   (when *current-model* 
@@ -116,25 +189,28 @@ Modifiers is a possibly empty list of keywords that look like :lshift
                  (first (tracking-points *current-model*)))))
 
       (t
-       (setf *selected-pt* (first (model-path *current-model*)))))))
+       (setf *selected-pt* (first (model-path *current-model*)))))
+    (when *selected-pt*
+      (terpri)
+      (princ *selected-pt*) (force-output))))
 
 (defun add-path-point (x y)
-  (push (sdl2:make-point x y)
+  (push (make-vertex x y)
         (model-path *current-model*)))
 
 (defun remove-path-point ()
   (pop (model-path *current-model*)))
 
 (defun add-tracking-point (x y)
-  (push (sdl2:make-point x y)
+  (push (make-tracking-point x y)
         (tracking-points *current-model*)))
 
 (defun point-at (x y &key (radius 10))
   (flet ((lookup (pts)
            (find-if
             (lambda (pt)
-              (and (<= (abs (- (sdl2:point-x pt) x)) radius)
-                   (<= (abs (- (sdl2:point-y pt) y)) radius)))
+              (and (<= (abs (- (point-x pt) x)) radius)
+                   (<= (abs (- (point-y pt) y)) radius)))
             pts)))
     (when-let (pt (lookup (model-path *current-model*)))
       (return-from point-at (values pt :path)))
@@ -166,8 +242,8 @@ Modifiers is a possibly empty list of keywords that look like :lshift
 
 (let ((point-rect (sdl2:make-rect 0 0 20 20)))
   (defun draw-point (renderer point)
-    (setf (sdl2:rect-x point-rect) (- (sdl2:point-x point) 10)
-          (sdl2:rect-y point-rect) (- (sdl2:point-y point) 10))
+    (setf (sdl2:rect-x point-rect) (- (point-x point) 10)
+          (sdl2:rect-y point-rect) (- (point-y point) 10))
     (sdl2:render-fill-rect renderer point-rect)))
 
 (defun render (renderer)
@@ -177,15 +253,19 @@ Modifiers is a possibly empty list of keywords that look like :lshift
   (when *current-model*
     (with-slots (path tracking-points triangles) *current-model* 
       (sdl2:set-render-draw-color renderer 0 0 255 255)
-      (let ((path (when (car path) (cons (car (last path)) path))))
+      (let ((path (mapcar #'raw-point
+                          (when (car path) (cons (car (last path)) path)))))
         (multiple-value-bind (points num) (apply #'sdl2:points* (reverse path))
           (sdl2:render-draw-lines renderer points num)))
+
       (dolist (pt path) (draw-point renderer pt))
       (sdl2:set-render-draw-color renderer 255 0 0 255)
+
       (dolist (pt tracking-points) (draw-point renderer pt))
       (sdl2:set-render-draw-color renderer 0 255 0 255)
+
       (dolist (tri triangles)
-        (let ((tri (cons (car (last tri)) tri)))
+        (let ((tri (mapcar #'raw-point (cons (car (last tri)) tri))))
           (multiple-value-bind (points num) (apply #'sdl2:points* tri)
             (sdl2:render-draw-lines renderer points num))))))
 
