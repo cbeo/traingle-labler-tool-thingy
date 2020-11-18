@@ -131,7 +131,9 @@ Modifiers is a possibly empty list of keywords that look like :lshift
 
 (defun cancel ()
   (case *mode*
-    (:path (remove-path-point))))
+    (:path (remove-path-point))
+    (:triangle (remove-triangle))
+    (:tracking (remove-tracking-point))))
 
 (defun handle-keydown (key)
   (trivia:match key
@@ -195,15 +197,22 @@ Modifiers is a possibly empty list of keywords that look like :lshift
       (princ *selected-pt*) (force-output))))
 
 (defun add-path-point (x y)
-  (push (make-vertex x y)
-        (model-path *current-model*)))
+  (when *current-model*
+    (push (make-vertex x y)
+          (model-path *current-model*))))
 
 (defun remove-path-point ()
-  (pop (model-path *current-model*)))
+  (when *current-model*
+    (pop (model-path *current-model*))))
 
 (defun add-tracking-point (x y)
-  (push (make-tracking-point x y)
-        (tracking-points *current-model*)))
+  (when *current-model* 
+    (push (make-tracking-point x y)
+          (tracking-points *current-model*))))
+
+(defun remove-tracking-point ()
+  (when *current-model*
+    (pop (tracking-points *current-model*))))
 
 (defun point-at (x y &key (radius 10))
   (flet ((lookup (pts)
@@ -220,13 +229,18 @@ Modifiers is a possibly empty list of keywords that look like :lshift
 
 (let ((building-triangle nil))
   (defun add-point-to-triangle (x y)
-    (multiple-value-bind (pt kind) (point-at x y)
-      (declare (ignorable kind))
-      (when pt
-        (push pt building-triangle))
-      (when (= 3 (length building-triangle))
-        (push building-triangle (triangles *current-model*))
-        (setf building-triangle nil)))))
+    (when *current-model* 
+      (multiple-value-bind (pt kind) (point-at x y)
+        (declare (ignorable kind))
+        (when pt
+          (push pt building-triangle))
+        (when (= 3 (length building-triangle))
+          (push building-triangle (triangles *current-model*))
+          (setf building-triangle nil))))))
+
+(defun remove-triangle ()
+  (when *current-model*
+    (pop (triangles *current-model*))))
 
 (defun handle-mousedown (&key x y clicks button)
   (declare (ignorable x y clicks button))
