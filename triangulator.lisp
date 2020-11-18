@@ -163,6 +163,14 @@ Modifiers is a possibly empty list of keywords that look like :lshift
     (:triangle (remove-triangle))
     (:tracking (remove-tracking-point))))
 
+(defun export-model ()
+  (when *current-model*
+    (alexandria:write-string-into-file
+     (j:to-json *current-model*)
+     (concatenate 'string (label *current-model*) ".json")
+     :if-exists :supersede)
+    (format t "exported ~a~%" (label *current-model*))))
+
 (defun handle-keydown (key)
   (trivia:match key
     ((list :scancode-p) (switch-mode :path))
@@ -173,7 +181,8 @@ Modifiers is a possibly empty list of keywords that look like :lshift
     ((list :scancode-n) (cycle-models))
     ((list :scancode-n :rshift) (cycle-models t))
     ((list :scancode-n :lshift) (cycle-models t))
-    ((list :scancode-z) (cancel))
+    ((list :scancode-z :rshift) (cancel))
+    ((list :scancode-z :lshift) (cancel))
     ((list :scancode-up) (move-selected 0 -5))
     ((list :scancode-down) (move-selected 0 5))
     ((list :scancode-left) (move-selected -5 0))
@@ -181,6 +190,8 @@ Modifiers is a possibly empty list of keywords that look like :lshift
     ((list :scancode-tab) (next-selected-point))
     ((list :scancode-e) (edit-selected))
     ((list :scancode-l) (label-model))
+    ((list :scancode-x :rshift) (export-model))
+    ((list :scancode-x :lshift) (export-model))
     ;;(_ (print key) (force-output))
     ))
 
