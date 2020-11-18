@@ -88,11 +88,20 @@
     :accessor triangles
     :initform nil)))
 
+(defun pre-process-tringles (triangles)
+  (labels ((map-point (pt)
+             (typecase pt
+               (vertex pt)
+               (tracking-point (list :|tracking| (label pt)
+                                     :|point| (list (point-x pt) (point-y pt)))))))
+    (loop :for tri :in triangles
+          :collect (mapcar #'map-point tri))))
+
 (defmethod j:%to-json ((model model))
   (j:with-object
     (j:write-key-value "label" (label model))
     (j:write-key-value "tracking" (tracking-points model))
-    (j:write-key-value "triangles" (triangles model))))
+    (j:write-key-value "triangles" (pre-process-tringles (triangles model)))))
 
 (defun key (keysym)
   "Converts an sdl keysm into a list that looks like (scancode . modifiers)
