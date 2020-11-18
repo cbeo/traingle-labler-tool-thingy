@@ -64,7 +64,10 @@
 
 
 (defclass model ()
-  ((path
+  ((label
+    :accessor label
+    :initform "")
+   (path
     :accessor model-path
     :initform  nil)
    (tracking-points
@@ -112,6 +115,14 @@ Modifiers is a possibly empty list of keywords that look like :lshift
 (defvar *all-models* (make-queue))
 (defvar *current-model* nil)
 
+(defun label-model ()
+  (when *current-model*
+    (when  (y-or-n-p "Set the model's label? (currently = ~s)"
+                     (label *current-model*))
+      (princ "new label> ")  (force-output)
+      (setf (label *current-model*)
+            (read-line)))))
+
 (defun clear-models ()
   (setf *all-models* (make-queue)
         *current-model* nil))
@@ -152,6 +163,7 @@ Modifiers is a possibly empty list of keywords that look like :lshift
     ((list :scancode-right) (move-selected 5 0))
     ((list :scancode-tab) (next-selected-point))
     ((list :scancode-e) (edit-selected))
+    ((list :scancode-l) (label-model))
     ;;(_ (print key) (force-output))
     ))
 
