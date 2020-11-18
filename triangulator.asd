@@ -6,6 +6,6 @@
   :license  "Specify license here"
   :version "0.0.1"
   :serial t
-  :depends-on (#:sdl2 #:swank #:trivia #:alexandria)
+  :depends-on (#:sdl2 #:swank #:trivia #:alexandria #:jonathan)
   :components ((:file "package")
                (:file "triangulator")))
