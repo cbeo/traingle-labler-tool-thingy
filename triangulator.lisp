@@ -15,6 +15,17 @@
 (defclass vertex (point)
   ((tracking :accessor tracking-point :initform "")))
 
+(defmethod j:%to-json ((v vertex))
+  (j:with-object
+    (j:write-key-value "point" (list (point-x v) (point-y v)))
+    (j:write-key-value "tracking" (tracking-point v))))
+
+(defmethod j:%to-json ((pt tracking-point))
+  (j:with-object
+    (j:write-key-value "point" (list (point-x pt) (point-y pt)))
+    (j:write-key-value "label" (label pt))
+    (j:write-key-value "behavior" (behavior pt))))
+
 (defun make-vertex (x y)
   (make-instance 'vertex :raw (sdl2:make-point x y)))
 
@@ -76,6 +87,12 @@
    (triangles
     :accessor triangles
     :initform nil)))
+
+(defmethod j:%to-json ((model model))
+  (j:with-object
+    (j:write-key-value "label" (label model))
+    (j:write-key-value "tracking" (tracking-points model))
+    (j:write-key-value "triangles" (triangles model))))
 
 (defun key (keysym)
   "Converts an sdl keysm into a list that looks like (scancode . modifiers)
