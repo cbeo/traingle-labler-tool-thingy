@@ -44,12 +44,12 @@
                  :x (point-x pt) :y (point-y pt)
                  :tracking-point (tracking-point pt)))
 
-(defmethod j:%to-json ((v vertex))
+(defmethod j:%to-json ((v exportable-vertex))
   (j:with-object
     (j:write-key-value "point" (list (point-x v) (point-y v)))
     (j:write-key-value "tracking" (tracking-point v))))
 
-(defmethod j:%to-json ((pt tracking-point))
+(defmethod j:%to-json ((pt exportable-tracking-point))
   (j:with-object
     (j:write-key-value "point" (list (point-x pt) (point-y pt)))
     (j:write-key-value "label" (label pt))
@@ -60,11 +60,13 @@
 
 (defun scale (pt sx sy)
   (setf (point-x pt) (* sx (point-x pt))
-        (point-y pt) (* sy (point-y pt))))
+        (point-y pt) (* sy (point-y pt)))
+  pt)
 
 (defun translate (pt dx dy)
   (incf (point-x pt) dx)
-  (incf (point-y pt) dy))
+  (incf (point-y pt) dy)
+  pt)
 
 
 (defgeneric edit-point (point)
@@ -173,9 +175,10 @@
 (defun pre-process-tringles (triangles)
   (labels ((map-point (pt)
              (typecase pt
-               (vertex pt)
-               (tracking-point (list :|tracking| (label pt)
-                                     :|point| (list (point-x pt) (point-y pt)))))))
+               (exportable-tracking-point
+                (list :|tracking| (label pt)
+                      :|point| (list (point-x pt) (point-y pt))))
+               (t pt))))
     (loop :for tri :in triangles
           :collect (mapcar #'map-point tri))))
 
@@ -280,9 +283,6 @@ Modifiers is a possibly empty list of keywords that look like :lshift
     ((list :scancode-left) (move-selected -5 0))
     ((list :scancode-right) (move-selected 5 0))
     ((list :scancode-tab) (next-selected-point))
-    ((list :scancode-e) (edit-selected))
-    ((list :scancode-e :rshift) (begin-edit-loop))
-    ((list :scancode-e :lshift) (begin-edit-loop))
     ((list :scancode-l) (label-model))
     ((list :scancode-x :rshift) (export-model))
     ((list :scancode-x :lshift) (export-model))
