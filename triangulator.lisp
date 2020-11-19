@@ -2,18 +2,47 @@
 
 (in-package #:triangulator)
 
+
 (defclass point ()
   ((raw :initarg :raw :reader raw-point)))
+
+(defclass exportable-point ()
+  ((x :initarg :x :initform 0 :accessor point-x)
+   (y :initarg :y :initform 0 :accessor point-y)))
+
+(defgeneric make-exportable (pt))
 
 (defclass tracking-point (point)
   ((label :accessor label :initform "")
    (behavior :accessor behavior :initform "")))
+
+(defclass exportable-tracking-point (exportable-point)
+  ((label :accessor label :initform "" :initarg :label)
+   (behavior :accessor behavior :initform "" :initarg :behavior))  )
+
+(defmethod make-exportable ((pt tracking-point))
+  (make-instance 'exportable-tracking-point
+                 :x (point-x pt)
+                 :y (point-y pt)
+                 :label (label pt)
+                 :behavior (behavior pt)))
 
 (defun make-tracking-point (x y)
   (make-instance 'tracking-point :raw (sdl2:make-point x y)))
 
 (defclass vertex (point)
   ((tracking :accessor tracking-point :initform "")))
+
+(defclass exportable-vertex (exportable-point)
+  ((tracking
+    :accessor tracking-point
+    :initform ""
+    :initarg :tracking-point)))
+
+(defmethod make-exportable ((pt vertex))
+  (make-instance 'exportable-vertex
+                 :x (point-x pt) :y (point-y pt)
+                 :tracking-point (tracking-point pt)))
 
 (defmethod j:%to-json ((v vertex))
   (j:with-object
@@ -28,6 +57,15 @@
 
 (defun make-vertex (x y)
   (make-instance 'vertex :raw (sdl2:make-point x y)))
+
+(defun scale (pt sx sy)
+  (setf (point-x pt) (* sx (point-x pt))
+        (point-y pt) (* sy (point-y pt))))
+
+(defun translate (pt dx dy)
+  (incf (point-x pt) dx)
+  (incf (point-y pt) dy))
+
 
 (defgeneric edit-point (point)
   (:documentation "interactive edit string features of this point"))
@@ -57,19 +95,20 @@
     (format stream "tracking point~%x = ~a~%y = ~a~%label = ~a~%behavior = ~a~%"
             (point-x pt) (point-y pt) label behavior)    ))
 
-(defun point-x (point)
+(defgeneric point-x (point))
+(defmethod point-x ((point point))
   (with-slots (raw) point
     (sdl2:point-x raw)))
 
-(defun (setf point-x) (val point)
+(defmethod (setf point-x) (val (point point))
   (with-slots (raw) point
     (setf (sdl2:point-x raw) val))) 
 
-(defun point-y (point)
+(defmethod point-y ((point point))
   (with-slots (raw) point
     (sdl2:point-y raw)))
 
-(defun (setf point-y) (val point)
+(defmethod (setf point-y) (val (point point))
   (with-slots (raw) point
     (setf (sdl2:point-y raw) val))) 
 
@@ -77,6 +116,7 @@
 (defclass model ()
   ((label
     :accessor label
+    :initarg :label
     :initform "")
    (path
     :accessor model-path
@@ -88,6 +128,48 @@
     :accessor triangles
     :initform nil)))
 
+(defun model-bounding-box (m)
+  (let ((box (sdl2:make-rect (point-x (first (model-path m)))
+                             (point-y (first (model-path m)))
+                             0 0)))
+    (dolist (tri (triangles m) box)
+      (dolist (pt tri)
+        (setf (sdl2:rect-x box) (min (sdl2:rect-x box)
+                                     (point-x pt))
+              (sdl2:rect-y box) (min (sdl2:rect-y box)
+                                     (point-y pt)))
+        (setf (sdl2:rect-width box) (max (sdl2:rect-width box)
+                                         (- (point-x pt)
+                                            (sdl2:rect-x box)))
+              (sdl2:rect-height box) (max (sdl2:rect-height box)
+                                          (- (point-y pt)
+                                             (sdl2:rect-y box))))))))
+
+(defun normalized-model (model)
+  (let* ((box
+           (model-bounding-box model))
+         (tx
+           (* -1 (+ (sdl2:rect-x box) (* 0.5 (sdl2:rect-width box)))))
+         (ty
+           (* -1 (+ (sdl2:rect-y box) (* 0.5 (sdl2:rect-height box)))))
+         (scale
+           (if (< (sdl2:rect-width box) (sdl2:rect-height box))
+               (/ 2 (sdl2:rect-height box))
+               (/ 2 (sdl2:rect-width  box))))
+         (normalizer
+           (lambda (pt) (scale
+                         (translate
+                          (make-exportable pt)
+                          tx ty)
+                         scale scale)))
+         (new-model
+           (make-instance 'model :label (label model))))
+    (setf (triangles new-model)
+          (mapcar (lambda (tri) (mapcar normalizer tri)) (triangles model))
+          (tracking-points new-model)
+          (mapcar normalizer (tracking-points model)))
+    new-model))
+
 (defun pre-process-tringles (triangles)
   (labels ((map-point (pt)
              (typecase pt
@@ -98,10 +180,11 @@
           :collect (mapcar #'map-point tri))))
 
 (defmethod j:%to-json ((model model))
-  (j:with-object
-    (j:write-key-value "label" (label model))
-    (j:write-key-value "tracking" (tracking-points model))
-    (j:write-key-value "triangles" (pre-process-tringles (triangles model)))))
+  (let ((model (normalized-model model)))
+    (j:with-object
+      (j:write-key-value "label" (label model))
+      (j:write-key-value "tracking" (tracking-points model))
+      (j:write-key-value "triangles" (pre-process-tringles (triangles model))))))
 
 (defun key (keysym)
   "Converts an sdl keysm into a list that looks like (scancode . modifiers)
@@ -198,11 +281,24 @@ Modifiers is a possibly empty list of keywords that look like :lshift
     ((list :scancode-right) (move-selected 5 0))
     ((list :scancode-tab) (next-selected-point))
     ((list :scancode-e) (edit-selected))
+    ((list :scancode-e :rshift) (begin-edit-loop))
+    ((list :scancode-e :lshift) (begin-edit-loop))
     ((list :scancode-l) (label-model))
     ((list :scancode-x :rshift) (export-model))
     ((list :scancode-x :lshift) (export-model))
     ;;(_ (print key) (force-output))
     ))
+
+(defun begin-edit-loop ()
+  (when *current-model*
+    (next-selected-point)
+    (when  (y-or-n-p "Edit?") (edit-selected))
+    (let ((starting-point *selected-pt*))
+      (next-selected-point)
+      (loop :until (eq *selected-pt* starting-point)
+            :do
+               (when (y-or-n-p "Edit?") (edit-selected))
+               (next-selected-point)))))
 
 (defvar *selected-pt* nil)
 (defun select-point-at (x y)
