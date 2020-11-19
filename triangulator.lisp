@@ -283,13 +283,27 @@ Modifiers is a possibly empty list of keywords that look like :lshift
     (:triangle (remove-triangle))
     (:tracking (remove-tracking-point))))
 
+(defun model-ready-for-export-p (m)
+  (and m
+       (plusp (length (label m)))
+       (triangles m)
+       (tracking-points m)
+       (not  (some (lambda (pt) (or (string= "" (label pt))
+                                    (string= "" (behavior pt))))
+                   (tracking-points m)))
+       (model-path m)
+       (not (some (lambda (pt) (string= "" (tracking-point pt)))
+                  (model-path m)))))
+
 (defun export-model ()
-  (when *current-model*
-    (alexandria:write-string-into-file
-     (j:to-json *current-model*)
-     (concatenate 'string (label *current-model*) ".json")
-     :if-exists :supersede)
-    (format t "exported ~a~%" (label *current-model*))))
+  (cond
+    ((model-ready-for-export-p *current-model*)
+     (alexandria:write-string-into-file
+      (j:to-json *current-model*)
+      (concatenate 'string (label *current-model*) ".json")
+      :if-exists :supersede)
+     (format t "exported ~a~%" (label *current-model*)))
+    (t (format t "modle not ready for export~%"))))
 
 (defun handle-keydown (key)
   (trivia:match key
