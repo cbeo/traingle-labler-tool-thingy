@@ -208,11 +208,20 @@
           :collect (mapcar #'map-point tri))))
 
 (defmethod j:%to-json ((model model))
-  (let ((model (normalized-model model)))
+  (let ((normal (normalized-model model)))
     (j:with-object
-      (j:write-key-value "label" (label model))
-      (j:write-key-value "tracking" (tracking-points model))
-      (j:write-key-value "triangles" (pre-process-tringles (triangles model))))))
+      (j:write-key-value
+       "original"
+       (j:with-object 
+         (j:write-key-value "label" (label model))
+         (j:write-key-value "tracking" (tracking-points model))
+         (j:write-key-value "triangles" (pre-process-tringles (triangles model)))))
+      (j:write-key-value
+       "normalized"
+       (j:with-object 
+         (j:write-key-value "label" (label normal))
+         (j:write-key-value "tracking" (tracking-points normal))
+         (j:write-key-value "triangles" (pre-process-tringles (triangles normal))))))))
 
 (defun key (keysym)
   "Converts an sdl keysm into a list that looks like (scancode . modifiers)
