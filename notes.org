@@ -1,0 +1,53 @@
+
+* How to start for use 
+
+1. from a terminal start sbcl
+2. do 
+
+(ql:quickload :triangulator)
+(in-package :triangulator)
+(start-debug)
+
+3. from emacs do ~M-x slime-connect~ on 4006
+4. do
+
+(in-package :triangulator) 
+
+
+* Once started   
+
+  Here are the main commands
+
+p (switch-mode :path)
+T (switch-mode :triangle)
+t (switch-mode :tracking)
+s (switch-mode :select)
+n (cycle-models)
+N (cycle-models t)
+Z (cancel)
+up (move-selected 0 -5)
+down (move-selected 0 5)
+left (move-selected -5 0)
+right (move-selected 5 0)
+tab (next-selected-point)
+l (label-model)
+X (export-model)
+
+In path mode, points are added to the current path in response to clicks
+
+In tracking mode, poitns are added to the current tracking points
+
+In triangle mode, the mouse is used to click on any three points, a
+triangle is then added to the model's triangles
+
+in select mode, you can select a triangle by clicking
+
+Tab cycles through triangles. As points are cycled through, they are
+printe to the terminal, and are highlted in the display window
+
+Some repl commands:
+
+(begin-edit-loop) will cycle through all poitns, allowing you to edit
+them, taking input from the repl
+
+(edit-selected) will let you edit the currently selected point
