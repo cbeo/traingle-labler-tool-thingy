@@ -172,6 +172,31 @@
           (mapcar normalizer (tracking-points model)))
     new-model))
 
+(defun argmin (fn xs)
+  (when xs
+    (let ((mx (car xs))
+          (val (funcall fn (car xs))))
+      (dolist (x (cdr xs) mx)
+        (let ((tval (funcall fn x)))
+          (when (< tval val)
+            (setf mx x
+                  val tval)))))))
+
+(defun point-dist (a b)
+  (let ((dx (- (point-x b) (point-x a)))
+        (dy (- (point-y b) (point-y a))))
+    (sqrt (+ (* dx dx) (* dy dy)))))
+
+(defun auto-track ()
+  (when (and  *current-model*
+              (model-path *current-model*)
+              (tracking-points *current-model*))
+    (dolist (pt (model-path *current-model*))
+      (setf (tracking-point pt)
+            (label
+             (argmin (lambda (xy) (point-dist pt xy))
+                     (tracking-points *current-model*)))))))
+
 (defun pre-process-tringles (triangles)
   (labels ((map-point (pt)
              (typecase pt
