@@ -290,7 +290,7 @@
                     (@> ob :|triangles|))))
     model))
 
-(defun load-int-current-model (json-file)
+(defun load-into-current-model (json-file)
   (setf *current-model* (load-model json-file)))
 
 (defun key (keysym)
@@ -560,10 +560,10 @@ Modifiers is a possibly empty list of keywords that look like :lshift
 
 (defun start-debug ()
   (bt:make-thread (lambda () (swank:create-server :port 4006 :dont-close t)))
-  (start))
+  (start :exit-after t))
 
 
-(defun start ()
+(defun start (&key exit-after)
   (sdl2:with-init (:everything)
     (sdl2:with-window (win :title "triangulator" :flags '(:shown))
       (sdl2:with-renderer (renderer win :flags '(:accelerated))
@@ -578,4 +578,6 @@ Modifiers is a possibly empty list of keywords that look like :lshift
 
           (:idle () (render renderer))
 
-          (:quit () t))))))
+          (:quit () t)))))
+  (when exit-after
+    (sb-ext:exit)))
