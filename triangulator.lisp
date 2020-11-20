@@ -13,8 +13,8 @@
 (defgeneric make-exportable (pt))
 
 (defclass tracking-point (point)
-  ((label :accessor label :initform "")
-   (behavior :accessor behavior :initform "")))
+  ((label :accessor label :initform "" :initarg :label)
+   (behavior :accessor behavior :initform "" :initarg :behavior)))
 
 (defclass exportable-tracking-point (exportable-point)
   ((label :accessor label :initform "" :initarg :label)
@@ -27,11 +27,15 @@
                  :label (label pt)
                  :behavior (behavior pt)))
 
-(defun make-tracking-point (x y)
-  (make-instance 'tracking-point :raw (sdl2:make-point x y)))
+(defun make-tracking-point (x y &key (label "") (behavior ""))
+  (make-instance 'tracking-point
+                 :raw (sdl2:make-point x y)
+                 :label label
+                 :behavior behavior))
 
 (defclass vertex (point)
-  ((tracking :accessor tracking-point :initform "")))
+  ((tracking :accessor tracking-point :initform ""
+             :initarg :tracking-point)))
 
 (defclass exportable-vertex (exportable-point)
   ((tracking
@@ -44,6 +48,11 @@
                  :x (point-x pt) :y (point-y pt)
                  :tracking-point (tracking-point pt)))
 
+(defmethod j:%to-json ((v vertex))
+  (j:with-object
+    (j:write-key-value "point" (list (point-x v) (point-y v)))
+    (j:write-key-value "tracking" (tracking-point v))))
+
 (defmethod j:%to-json ((v exportable-vertex))
   (j:with-object
     (j:write-key-value "point" (list (point-x v) (point-y v)))
@@ -55,8 +64,16 @@
     (j:write-key-value "label" (label pt))
     (j:write-key-value "behavior" (behavior pt))))
 
-(defun make-vertex (x y)
-  (make-instance 'vertex :raw (sdl2:make-point x y)))
+(defmethod j:%to-json ((pt tracking-point))
+  (j:with-object
+    (j:write-key-value "point" (list (point-x pt) (point-y pt)))
+    (j:write-key-value "label" (label pt))
+    (j:write-key-value "behavior" (behavior pt))))
+
+(defun make-vertex (x y &key (tracking-point ""))
+  (make-instance 'vertex
+                 :raw (sdl2:make-point x y)
+                 :tracking-point tracking-point))
 
 (defun scale (pt sx sy)
   (setf (point-x pt) (* sx (point-x pt))
@@ -200,6 +217,9 @@
 (defun pre-process-tringles (triangles)
   (labels ((map-point (pt)
              (typecase pt
+               (tracking-point
+                (list :|tracking| (label pt)
+                      :|point| (list (point-x pt) (point-y pt))))
                (exportable-tracking-point
                 (list :|tracking| (label pt)
                       :|point| (list (point-x pt) (point-y pt))))
@@ -214,6 +234,7 @@
        "original"
        (j:with-object 
          (j:write-key-value "label" (label model))
+         (j:write-key-value "path" (model-path model))
          (j:write-key-value "tracking" (tracking-points model))
          (j:write-key-value "triangles" (pre-process-tringles (triangles model)))))
       (j:write-key-value
@@ -222,6 +243,52 @@
          (j:write-key-value "label" (label normal))
          (j:write-key-value "tracking" (tracking-points normal))
          (j:write-key-value "triangles" (pre-process-tringles (triangles normal))))))))
+
+
+(defun @> (ob &rest props)
+  (let ((val ob))
+    (dolist (p props val)
+      (setf val (if (integerp p)
+                    (elt val p)
+                    (getf val p))))))
+
+(defun load-model (json-file)
+  (let ((ob
+          (@> (j:parse (alexandria:read-file-into-string json-file))
+              :|original|))
+        (model (make-instance 'model)))
+    (setf
+     (label model) (@> ob :|label|)
+
+     (tracking-points model)
+     (mapcar (lambda (pt)
+               (make-tracking-point
+                (@> pt :|point| 0)
+                (@> pt :|point| 1)
+                :label (@> pt :|label|)
+                :behavior (@> pt :|behavior|)))
+             (@> ob :|tracking|))
+
+     (model-path model)
+     (mapcar (lambda (pt)
+               (make-vertex
+                (@> pt :|point| 0)
+                (@> pt :|point| 1)
+                :tracking-point (@> pt :|tracking|)))
+             (@> ob :|path|)))
+
+    (let* ((all-points
+             (append (model-path model) (tracking-points model)))
+           (find-pt
+             (lambda (tri-pt)
+               (find-if (lambda (pt)
+                          (and (= (point-x pt) (@> tri-pt :|point| 0))
+                               (= (point-y pt) (@> tri-pt :|point| 1))))
+                        all-points))))
+      (setf (triangles model)
+            (mapcar (lambda (tri) (mapcar find-pt tri))
+                    (@> ob :|triangles|))))
+    model))
 
 (defun key (keysym)
   "Converts an sdl keysm into a list that looks like (scancode . modifiers)
