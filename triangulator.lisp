@@ -290,6 +290,9 @@
                     (@> ob :|triangles|))))
     model))
 
+(defun load-int-current-model (json-file)
+  (setf *current-model* (load-model json-file)))
+
 (defun key (keysym)
   "Converts an sdl keysm into a list that looks like (scancode . modifiers)
 
