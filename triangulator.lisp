@@ -487,16 +487,17 @@ Modifiers is a possibly empty list of keywords that look like :lshift
       (return-from point-at (values pt :tracking)))
     (values nil nil)))
 
-(let ((building-triangle nil))
-  (defun add-point-to-triangle (x y)
-    (when *current-model* 
-      (multiple-value-bind (pt kind) (point-at x y)
-        (declare (ignorable kind))
-        (when pt
-          (push pt building-triangle))
-        (when (= 3 (length building-triangle))
-          (push building-triangle (triangles *current-model*))
-          (setf building-triangle nil))))))
+(defvar *building-triangle* nil)
+
+(defun add-point-to-triangle (x y)
+  (when *current-model* 
+    (multiple-value-bind (pt kind) (point-at x y)
+      (declare (ignorable kind))
+      (when pt
+        (push pt *building-triangle*))
+      (when (= 3 (length *building-triangle*))
+        (push *building-triangle* (triangles *current-model*))
+        (setf *building-triangle* nil)))))
 
 (defun remove-triangle ()
   (when *current-model*
@@ -541,7 +542,10 @@ Modifiers is a possibly empty list of keywords that look like :lshift
       (dolist (tri triangles)
         (let ((tri (mapcar #'raw-point (cons (car (last tri)) tri))))
           (multiple-value-bind (points num) (apply #'sdl2:points* tri)
-            (sdl2:render-draw-lines renderer points num))))))
+            (sdl2:render-draw-lines renderer points num))))
+
+      (sdl2:set-render-draw-color renderer 255 255 0 255)
+      (dolist (pt *building-triangle*) (draw-point renderer pt))))
 
   (when *selected-pt*
     (sdl2:set-render-draw-color renderer 255 0 255 255)
