@@ -2,7 +2,6 @@
 
 (in-package #:triangulator)
 
-
 (defclass point ()
   ((raw :initarg :raw :reader raw-point)))
 
@@ -401,9 +400,9 @@ Modifiers is a possibly empty list of keywords that look like :lshift
     ((list :scancode-left) (move-selected -5 0))
     ((list :scancode-right) (move-selected 5 0))
     ((list :scancode-tab) (next-selected-point))
-    ((list :scancode-l) (label-model))
-    ((list :scancode-x :rshift) (export-model))
-    ((list :scancode-x :lshift) (export-model))
+    ;; ((list :scancode-l) (label-model))
+    ;; ((list :scancode-x :rshift) (export-model))
+    ;; ((list :scancode-x :lshift) (export-model))
     ;;(_ (print key) (force-output))
     ))
 
@@ -545,15 +544,16 @@ Modifiers is a possibly empty list of keywords that look like :lshift
       (dolist (tri triangles)
         (let ((tri (mapcar #'raw-point (cons (car (last tri)) tri))))
           (multiple-value-bind (points num) (apply #'sdl2:points* tri)
-            (sdl2:render-draw-lines renderer points num))))
-
-      (sdl2:set-render-draw-color renderer 255 255 0 255)
-      (dolist (pt *building-triangle*) (draw-point renderer pt))))
+            (sdl2:render-draw-lines renderer points num))))))
 
   (when *selected-pt*
     (sdl2:set-render-draw-color renderer 255 0 255 255)
     (draw-point renderer *selected-pt*))
   
+  (when *building-triangle*
+    (sdl2:set-render-draw-color renderer 255 255 0 255)
+    (dolist (pt *building-triangle*) (draw-point renderer pt)))
+
   (sdl2:render-present renderer)
   (sdl2:delay (round (/ 1000 60))))
 

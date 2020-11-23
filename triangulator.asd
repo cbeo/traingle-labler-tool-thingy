@@ -8,4 +8,5 @@
   :serial t
   :depends-on (#:sdl2 #:swank #:trivia #:alexandria #:jonathan)
   :components ((:file "package")
-               (:file "triangulator")))
+               (:file "triangulator")
+               (:file "triangulator-user")))
