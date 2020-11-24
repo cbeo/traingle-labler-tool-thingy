@@ -387,6 +387,7 @@ Modifiers is a possibly empty list of keywords that look like :lshift
 
 (defun handle-keydown (key)
   (trivia:match key
+    ((list :scancode-a) (auto-track) (format t "ran AUTO-TRACK~%"))
     ((list :scancode-p) (switch-mode :path))
     ((list :scancode-t :rshift) (switch-mode :triangle))
     ((list :scancode-t :lshift) (switch-mode :triangle))
@@ -468,10 +469,25 @@ Modifiers is a possibly empty list of keywords that look like :lshift
       (terpri)
       (princ *selected-pt*) (force-output))))
 
+
+(defun insert-after (y x xs &optional back)
+  (cond ((null xs)
+         (reverse (cons y back)))
+
+        ((eql x (car xs))
+         (append (reverse back)
+                 (list* (car xs) y  (cdr  xs))))
+
+        (t
+         (insert-after y x (cdr xs) (cons (car xs) back)))))
+
+
 (defun add-path-point (x y)
   (when *current-model*
-    (push (make-vertex x y)
-          (model-path *current-model*))))
+    (setf (model-path *current-model*)
+          (insert-after (make-vertex x y)
+                        *selected-pt*
+                        (model-path *current-model*)))))
 
 (defun remove-path-point ()
   (when *current-model*
