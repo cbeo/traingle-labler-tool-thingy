@@ -305,10 +305,12 @@ Modifiers is a possibly empty list of keywords that look like :lshift
 
 (defvar *mode* :path
   "Modes include
-:path      - for adding points to the end of a model's path
-:tracking  - for add points to the model's tracking points 
-:triangle  - for adding triangles to the model
-:select    - for selecting points for manipulation")
+:path            - for adding points to the end of a model's path
+:tracking        - for add points to the model's tracking points 
+:triangle        - for adding triangles to the model
+:remove-triangle - for removing triangles by selecting their points
+:remove-select   - for removing points (and triangles conaining them) by click
+:select          - for selecting points for manipulation")
 
 (defun make-queue ()
   (cons nil nil))
@@ -390,9 +392,12 @@ Modifiers is a possibly empty list of keywords that look like :lshift
     ((list :scancode-t :lshift) (switch-mode :triangle))
     ((list :scancode-t) (switch-mode :tracking))
     ((list :scancode-s) (switch-mode :select))
+    ((list :scancode-x) (switch-mode :remove-select))
+    ((list :scancode-x :lshift) (switch-mode :remove-triangle))
+    ((list :scancode-x :rshift) (switch-mode :remove-triangle))
     ((list :scancode-n) (cycle-models))
-    ((list :scancode-n :rshift) (cycle-models t))
-    ((list :scancode-n :lshift) (cycle-models t))
+    ;; ((list :scancode-n :rshift) (cycle-models t))
+    ;; ((list :scancode-n :lshift) (cycle-models t))
     ((list :scancode-z :rshift) (cancel))
     ((list :scancode-z :lshift) (cancel))
     ((list :scancode-up) (move-selected 0 -5))
@@ -406,16 +411,16 @@ Modifiers is a possibly empty list of keywords that look like :lshift
     ;;(_ (print key) (force-output))
     ))
 
-(defun begin-edit-loop ()
+(defun begin-edit-loop (&key tracking-only-p)
   (when *current-model*
-    (next-selected-point)
+    (next-selected-point tracking-only-p)
     (when  (y-or-n-p "Edit?") (edit-selected))
     (let ((starting-point *selected-pt*))
-      (next-selected-point)
+      (next-selected-point tracking-only-p)
       (loop :until (eq *selected-pt* starting-point)
             :do
                (when (y-or-n-p "Edit?") (edit-selected))
-               (next-selected-point)))))
+               (next-selected-point tracking-only-p)))))
 
 (defvar *selected-pt* nil)
 (defun select-point-at (x y)
@@ -437,9 +442,14 @@ Modifiers is a possibly empty list of keywords that look like :lshift
     (princ *selected-pt*)
     (terpri)))
 
-(defun next-selected-point ()
+(defun next-selected-point (&optional tracking-only-p)
   (when *current-model* 
-    (cond 
+    (cond
+      (tracking-only-p
+       (setf *selected-pt*
+             (or (second (member *selected-pt* (tracking-points *current-model*)))
+                 (first (tracking-points *current-model*)))))
+
       ((member *selected-pt* (model-path *current-model*))
        (setf *selected-pt*
              (or (second (member *selected-pt* (model-path *current-model*)))
@@ -496,10 +506,42 @@ Modifiers is a possibly empty list of keywords that look like :lshift
     (multiple-value-bind (pt kind) (point-at x y)
       (declare (ignorable kind))
       (when pt
-        (push pt *building-triangle*))
+        (pushnew pt *building-triangle*))
       (when (= 3 (length *building-triangle*))
         (push *building-triangle* (triangles *current-model*))
         (setf *building-triangle* nil)))))
+
+(defun remove-triangle-by-points (x y)
+  (when *current-model*
+    (let ((pt (point-at x y)))
+      (when pt
+        (push pt *building-triangle*))
+      (when (= 3 (length *building-triangle*))
+        (setf (triangles *current-model*)
+              (remove-if
+               (lambda (tri)
+                 (every (lambda (tri-pt) (member tri-pt *building-triangle*))
+                        tri))
+               (triangles *current-model*)))
+        (setf *building-triangle* nil)))))
+
+(defun remove-triangles-involving (pt)
+  (when *current-model*
+    (setf (triangles *current-model*)
+          (remove-if
+           (lambda (tri) (member pt tri))
+           (triangles *current-model*)))))
+
+(defun remove-point-at (x y)
+  (when *current-model*
+    (multiple-value-bind (pt kind) (point-at x y)
+      (when pt
+        (remove-triangles-involving pt)
+        (case kind
+          (:path (setf (model-path *current-model*)
+                       (remove pt (model-path *current-model*))))
+          (:tracking (setf (tracking-points *current-model*)
+                           (remove pt (tracking-points *current-model*)))))))))
 
 (defun remove-triangle ()
   (when *current-model*
@@ -514,6 +556,8 @@ Modifiers is a possibly empty list of keywords that look like :lshift
     (:path (add-path-point x y))
     (:tracking (add-tracking-point x y))
     (:triangle (add-point-to-triangle x y))
+    (:remove-select (remove-point-at x y))
+    (:remove-triangle (remove-triangle-by-points x y))
     (:select (select-point-at x y))))
 
 
