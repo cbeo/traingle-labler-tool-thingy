@@ -351,7 +351,8 @@ Modifiers is a possibly empty list of keywords that look like :lshift
       (enqueue *current-model* *all-models*))
     (setf *current-model* new-model)
     (setf *selected-pt* nil)
-    (switch-mode :path)))
+    (switch-mode :path)
+    (format t "Cycled to model ~a~%" (label *current-model*))))
 
 (defun switch-mode (m)
   (setf *mode* m)
@@ -397,8 +398,8 @@ Modifiers is a possibly empty list of keywords that look like :lshift
     ((list :scancode-x :lshift) (switch-mode :remove-triangle))
     ((list :scancode-x :rshift) (switch-mode :remove-triangle))
     ((list :scancode-n) (cycle-models))
-    ;; ((list :scancode-n :rshift) (cycle-models t))
-    ;; ((list :scancode-n :lshift) (cycle-models t))
+    ((list :scancode-n :rshift) (cycle-models t))
+    ((list :scancode-n :lshift) (cycle-models t))
     ((list :scancode-z :rshift) (cancel))
     ((list :scancode-z :lshift) (cancel))
     ((list :scancode-up) (move-selected 0 -5))
@@ -640,4 +641,4 @@ Modifiers is a possibly empty list of keywords that look like :lshift
 
           (:quit () t)))))
   (when exit-after
-    (sb-ext:exit)))
+    (quit)))
