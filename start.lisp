@@ -1,0 +1,5 @@
+(ql:quickload :cffi)
+(format t "Pointing CFFI to SDL2~%")
+(cffi:load-foreign-library #P"~/.guix-profile/lib/libSDL2-2.0.so.0")
+(ql:quickload :triangulator)
+(triangulator::start-debug)
